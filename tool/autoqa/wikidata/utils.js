@@ -35,7 +35,7 @@ async function wikidataQuery(query) {
 }
 
 /**
- * Get the label of a give property
+ * Get the label of a given property
  * @param {string} propertyId: the id of the property
  * @returns {Promise<null|string>}: the label of the property
  */
@@ -47,6 +47,22 @@ async function getPropertyLabel(propertyId) {
     const result = await wikidataQuery(query);
     if (result.length > 0)
         return result[0].propLabel.value;
+    return null;
+}
+
+/**
+ * Get the label of a given item
+ * @param {string} itemId: the id of the item
+ * @returns {Promise<null|string>}: the label of the item
+ */
+async function getItemLabel(itemId) {
+    const query = `SELECT ?label WHERE {
+        wd:${itemId} rdfs:label ?label .
+        FILTER (langMatches( lang(?label), "en" ) )
+    } LIMIT 1`;
+    const result = await wikidataQuery(query);
+    if (result.length > 0)
+        return result[0].label.value;
     return null;
 }
 
@@ -63,23 +79,88 @@ async function getPropertyList(domainId) {
     return result.map((r) => r.property.value.slice('http://www.wikidata.org/entity/'.length));
 }
 
-
-async function getExampleValuesForProperty(domainId, propertyId, size) {
-    const query = `SELECT DISTINCT ?value ?valueLabel WHERE {
-        ?item wdt:P31 wd:${domainId} .
-        ?item wdt:${propertyId} ?value .
+/**
+ * Get the value type constraint (Q21510865) of a property
+ * @param propertyId
+ * @returns {Promise<Array.Object<id,value>>} A list of allowed value types and their labels
+ */
+async function getValueTypeConstraint(propertyId) {
+    const query = `SELECT ?value ?valueLabel WHERE {
+        wd:${propertyId} p:P2302 ?statement .
+        ?statement ps:P2302 wd:Q21510865 .
+        ?statement pq:P2308 ?value .
         SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }
-    } LIMIT ${size}`;
+    }`;
     const result = await wikidataQuery(query);
     return result.map((r) => {
         return { id: r.value.value, label: r.valueLabel.value };
     });
 }
 
+/**
+ * Get the one-of constraint (Q21510859) of a property
+ * This allows to detect Enum types
+ *
+ * @param propertyId
+ * @returns {Promise<Array.String>} A list of enum values
+ */
+async function getOneOfConstraint(propertyId) {
+    const query = `SELECT ?value ?valueLabel WHERE {
+        wd:${propertyId} p:P2302 ?statement .
+        ?statement ps:P2302 wd:Q21510859 .
+        ?statement pq:P2305 ?value .
+        SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }
+    }`;
+    const result = await wikidataQuery(query);
+    return result.map((r) => r.valueLabel.value);
+}
+
+/**
+ * Get the allowed units (Q21514353) of a property
+ * This allows to detect Measure types
+ *
+ * @param propertyId
+ * @returns {Promise<Array.String>} A list of allowed units
+ */
+async function getAllowedUnits(propertyId) {
+    const query = `SELECT ?value ?valueLabel WHERE {
+        wd:${propertyId} p:P2302 ?statement .
+        ?statement ps:P2302 wd:Q21514353 .
+        ?statement pq:P2305 ?value .
+        SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }
+    }`;
+    const result = await wikidataQuery(query);
+    return result.map((r) => r.valueLabel.value);
+}
+
+/**
+ * Get the allowed units (Q21514353) of a property
+ * This allows to detect Measure types
+ *
+ * @param propertyId
+ * @returns {Promise<Array.Object<max, min>>|null} A list of allowed units
+ */
+async function getRangeConstraint(propertyId) {
+    const query = `SELECT ?max ?min WHERE {
+        wd:${propertyId} p:P2302 ?statement .
+        ?statement ps:P2302 wd:Q21510860 .
+        ?statement pq:P2312 ?max .
+        ?statement pq:P2312 ?min .
+        
+    }`;
+    const result = await wikidataQuery(query);
+    if (result.length > 0)
+        return { max: result.max.value, min: result.min.value };
+    return null;
+}
 
 module.exports = {
     wikidataQuery,
     getPropertyLabel,
+    getItemLabel,
     getPropertyList,
-    getExampleValuesForProperty
+    getValueTypeConstraint,
+    getOneOfConstraint,
+    getAllowedUnits,
+    getRangeConstraint
 };
