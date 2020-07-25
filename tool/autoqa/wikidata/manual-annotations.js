@@ -28,7 +28,7 @@ const PROPERTY_TYPE_OVERRIDE = {
     'P1449': Array(Type.String),
     'P166': Array(Type.Entity('org.wikidata:award')),
     'P106': Array(Type.Entity('org.wikidata:profession')),
-    'P21': Type.Enum(['Female', 'Male'])
+    'P21': Type.Enum(['female', 'male'])
 };
 
 const MANUAL_PROPERTY_CANONICAL_OVERRIDE = {

@@ -44,9 +44,10 @@ const {
 } = require('./manual-annotations');
 
 class SchemaProcessor {
-    constructor(domains, propertiesByDomain, output) {
+    constructor(domains, propertiesByDomain, requiredPropertiesByDomain, output) {
         this._domains = domains;
         this._propertiesByDomain = propertiesByDomain;
+        this._requiredPropertiesByDomain = requiredPropertiesByDomain;
         this._output = output;
     }
 
@@ -113,7 +114,15 @@ class SchemaProcessor {
         for (let domain of this._domains) {
             const domainLabel = await getItemLabel(domain);
             const properties = this._propertiesByDomain[domain];
-            const args = [];
+            const args = [
+                new Ast.ArgumentDef(
+                    null,
+                    Ast.ArgDirection.OUT,
+                    'id',
+                    Type.Entity(`org.wikidata:${snakecase(domainLabel)}`), {
+                    nl: { canonical: { base: ['name'], passive_verb: ['named', 'called'] } }
+                })
+            ];
             for (let property of properties) {
                 const type = await this._getType(domain, property);
                 const annotations = {
@@ -121,14 +130,21 @@ class SchemaProcessor {
                 };
                 args.push(new Ast.ArgumentDef(null, Ast.ArgDirection.OUT, property, type, annotations));
             }
-            queries[domain] = new Ast.FunctionDef(
-                null, 'query', null, domain, null, {
-                is_list: true,
-                is_monitorable: false
-            }, args, {
+            const qualifiers = { is_list: true, is_monitorable: false };
+            const annotations = {
                 nl: { canonical: clean(domainLabel), confirmation: clean(domainLabel) },
                 impl: { wikidata_subject: new Ast.Value.String(domain) }
-            });
+            };
+            if (domain in this._requiredPropertiesByDomain) {
+                annotations.impl.required_properties = new Ast.Value.Array(
+                    this._requiredPropertiesByDomain[domain].map((p) => new Ast.Value.String(p))
+                );
+            }
+
+            queries[domain] = new Ast.FunctionDef(
+                null, 'query', null, domain, null, qualifiers, args, annotations);
+
+
         }
 
         const imports = [
@@ -173,10 +189,23 @@ module.exports = {
                 'use "default" to include properties included in P1963 (properties of this type);\n' +
                 'exclude a property by placing a minus sign before its id (no space)'
         });
+        parser.addArgument('--required-properties', {
+            nargs: '+',
+            required: false,
+            help: 'the subset of properties that are required to be non-empty.'
+        });
     },
 
     async execute(args) {
         const domains = args.domains.split(',');
+        const requiredPropertiesByDomain = {};
+        if (args.required_properties) {
+            for (let i = 0; i < domains.length; i++) {
+                const domain = domains[i];
+                requiredPropertiesByDomain[domain] = args.required_properties[i].split(',');
+            }
+        }
+
         const propertiesByDomain = {};
         if (args.properties) {
             // if provided, property lists should match the number of domains
@@ -202,7 +231,7 @@ module.exports = {
             for (let domain of domains)
                 propertiesByDomain[domain] = await getPropertyList(domain);
         }
-        const schemaProcessor = new SchemaProcessor(domains, propertiesByDomain, args.output);
+        const schemaProcessor = new SchemaProcessor(domains, propertiesByDomain, requiredPropertiesByDomain, args.output);
         schemaProcessor.run();
     }
 };
