@@ -14,6 +14,7 @@ const assert = require('assert');
 const fs = require('fs');
 const util = require('util');
 const ThingTalk = require('thingtalk');
+const csvstringify = require('csv-stringify');
 
 const StreamUtils = require('../../../lib/utils/stream-utils');
 const { makeMetadata } = require('../lib/metadata');
@@ -31,16 +32,15 @@ class Downloader {
         // metadata for each wikidata type
         this.meta = {};
         // the normalized file
-        this.output = [];
+        this.database_map = {};
+        this.databases = {};
     }
-
 
     async init(thingpedia) {
         const library = ThingTalk.Grammar.parse(await util.promisify(fs.readFile)(thingpedia, { encoding: 'utf8' }));
         assert(library.isLibrary && library.classes.length === 1);
         const classDef = library.classes[0];
         this._classDef = classDef;
-
 
         for (let fn in classDef.queries) {
             const fndef = classDef.queries[fn];
@@ -51,6 +51,7 @@ class Downloader {
                 subject: fndef.getImplementationAnnotation('wikidata_subject'),
                 required_fields: fndef.getImplementationAnnotation('required_properties') || Object.keys(fields)
             };
+            this.database_map[fn] = [`${classDef.name}:${fn}`, `./${fn.toLowerCase()}_db.json`];
         }
     }
 
@@ -92,7 +93,6 @@ class Downloader {
         // numbers
         if (expectedType.type === 'tt:Number')
             return parseFloat(label);
-
 
         // string, date
         return label;
@@ -152,13 +152,13 @@ class Downloader {
                 continue;
             data[field] = this._processField(fname, field, result);
         }
-        this.output.push(data);
+        this.databases[fname].push(data);
 
     }
 
     async download() {
         for (let fn in this.meta) {
-            this.output[fn] = {};
+            this.databases[fn] = [];
             let items;
             if (fs.existsSync(`./wikidata_result_${fn}.json`)) {
                 const input = util.promisify(fs.readFile);
@@ -190,11 +190,9 @@ module.exports = {
             addHelp: true,
             description: "Download sample data from wikidata."
         });
-        parser.addArgument('--data-output', {
-            type: fs.createWriteStream
-        });
-        parser.addArgument('--meta-output', {
-            type: fs.createWriteStream
+        parser.addArgument('--output', {
+            type: fs.createWriteStream,
+            help: 'Path to the database map.'
         });
         parser.addArgument('--thingpedia', {
             required: true,
@@ -212,14 +210,17 @@ module.exports = {
         await downloader.init(args.thingpedia);
         await downloader.download();
 
-        if (args.meta_output) {
-            args.meta_output.end(JSON.stringify(downloader.meta, undefined, 2));
-            await StreamUtils.waitFinish(args.meta_output);
-        }
+        const output = csvstringify({ header: false, delimiter: '\t' });
+        output.pipe(args.output);
+        for (let fn in downloader.database_map)
+            output.write(downloader.database_map[fn]);
+        output.end();
+        await StreamUtils.waitFinish(output);
 
-        if (args.data_output) {
-            args.data_output.end(JSON.stringify(downloader.output, undefined, 2));
-            await StreamUtils.waitFinish(args.data_output);
+        for (let fn in downloader.databases) {
+            const output = fs.createWriteStream(`${downloader.database_map[fn][1]}`);
+            output.end(JSON.stringify(downloader.databases[fn], undefined, 2));
+            await StreamUtils.waitFinish(output);
         }
     }
 };
