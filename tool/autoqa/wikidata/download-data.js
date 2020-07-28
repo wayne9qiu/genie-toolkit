@@ -20,6 +20,7 @@ const { makeMetadata } = require('../lib/metadata');
 const { cleanEnumValue } = require('../lib/utils');
 
 const {
+    unitConverter,
     wikidataQuery,
     getItemLabel
 } = require('./utils');
@@ -81,9 +82,10 @@ class Downloader {
 
         // measurement
         if (expectedType.type === 'tt:Measure') {
-            const unit = this._classDef.queries[fname].getArgType(arg).unit;
-            if (unit === 'm')
-                return ThingTalk.Units.transformToBaseUnit(parseFloat(label), 'in');
+            const unit = unitConverter(value.unitLabel.value);
+            if (unit)
+                return ThingTalk.Units.transformToBaseUnit(parseFloat(label), unit);
+            console.error(`Unknown unit ${value.unitLabel.value}.`);
             return parseFloat(label);
         }
 
@@ -130,13 +132,21 @@ class Downloader {
         end up with exponential number of results.
          */
         for (let field of fields) {
-            const query = `
-                SELECT ?value ?valueLabel
-                WHERE {
-                    wd:${id} wdt:${field} ?value. 
-                    SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }
-                }
-            `;
+            let query;
+            if (this.meta[fname].fields[field].type === 'tt:Measure') {
+                query = `SELECT ?value ?valueLabel ?unit ?unitLabel
+                    WHERE {
+                        wd:${id} p:${field}/psv:${field}  
+                        [ wikibase:quantityAmount ?value ; wikibase:quantityUnit ?unit ] . 
+                        SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }
+                    }`;
+            } else {
+                query = `SELECT ?value ?valueLabel
+                    WHERE {
+                        wd:${id} wdt:${field} ?value. 
+                        SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }
+                    }`;
+            }
             const result = await wikidataQuery(query);
             if (result.length === 0)
                 continue;

@@ -22,6 +22,78 @@
 const Tp = require('thingpedia');
 const URL = 'https://query.wikidata.org/sparql';
 
+const WikidataUnitToTTUnit = {
+    // time
+    'millisecond': 'ms',
+    'second': 's',
+    'minute': 'min',
+    'hour': 'h',
+    'day': 'day',
+    'week': 'week',
+    'month': 'mon',
+    'year': 'year',
+    // length
+    'millimetre': 'mm',
+    'centimetre': 'cm',
+    'metre': 'm',
+    'kilometre': 'me',
+    'inch': 'in',
+    'foot': 'ft',
+    'mile': 'mi',
+    // speed
+    'metre per second': 'mps',
+    'kilometre per hour': 'kmph',
+    'miles per hour': 'mph',
+    // weight
+    'kilogram': 'kg',
+    'gram': 'g',
+    'milligram': 'mg',
+    'pound': 'lb',
+    'ounce': 'oz',
+    // pressure
+    'pascal': 'Pa',
+    'bar': 'bar',
+    'pound per square inch': 'psi',
+    'millimeter of mercury': 'mmHg',
+    'standard atmosphere': 'atm',
+    // temperature
+    'degree Celsius': 'C',
+    'degree Fahrenheit': 'F',
+    'kelvin': 'K',
+    // energy
+    'kilojoule': 'KJ',
+    'kilocalorie': 'kcal',
+    // file and memory size
+    'byte': 'byte',
+    'kilobyte': 'KB',
+    'kibibyte': 'KiB',
+    'megabyte': 'MB',
+    'mebibyte': 'MiB',
+    'gigabyte': 'GB',
+    'gibibyte': 'GiB',
+    'terabyte': 'TB',
+    'tebibyte': 'TiB',
+    // power
+    'watt': 'W',
+    'kilowatt': 'kW',
+    // luminous flux, luminous power
+    'lumen': 'lm',
+    // luminous emittance
+    'lux': 'lx',
+    // decibel
+    'decibel': 'dB',
+    // decibel-milliwatts,
+    'dBm': 'dBm'
+};
+
+/**
+ * Covert wikidata unit into thingtalk unit
+ * @param wikidataUnit
+ */
+function unitConverter(wikidataUnit) {
+    return WikidataUnitToTTUnit[wikidataUnit];
+}
+
 /**
  * Run SPARQL query on wikidata endpoint and retrieve results
  * @param {string} query: SPARQL query
@@ -155,6 +227,7 @@ async function getRangeConstraint(propertyId) {
 }
 
 module.exports = {
+    unitConverter,
     wikidataQuery,
     getPropertyLabel,
     getItemLabel,
