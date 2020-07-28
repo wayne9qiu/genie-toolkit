@@ -83,7 +83,7 @@ module.exports = {
         });
         parser.addArgument('--url', {
             required: false,
-            help: "URL of the server to evaluate. Use a file:// URL pointing to a model directory to evaluate using a local instance of decanlp",
+            help: "URL of the server to evaluate. Use a file:// URL pointing to a model directory to evaluate using a local instance of genienlp",
             defaultValue: 'http://127.0.0.1:8400',
         });
         parser.addArgument('--tokenized', {
@@ -136,6 +136,12 @@ module.exports = {
             dest: 'debug',
             help: 'Disable debugging.',
         });
+        parser.addArgument('--output-errors', {
+            required: false,
+            defaultValue: process.stdout,
+            type: fs.createWriteStream,
+            description: "Write erred examples to this file instead of stdout"
+        });
         parser.addArgument('--csv', {
             nargs: 0,
             action: 'storeTrue',
@@ -167,9 +173,8 @@ module.exports = {
 
         const output = readAllLines(args.input_file)
             .pipe(new DatasetParser({ contextual: args.contextual, preserveId: true, parseMultiplePrograms: true }))
-            .pipe(new SentenceEvaluatorStream(args.locale, parser, schemas, args.tokenized, args.debug, args.complexity_metric))
-            .pipe(new CollectSentenceStatistics({ maxComplexity: args.max_complexity ,
-                                                  splitByDevice: args.split_by_device}));
+            .pipe(new SentenceEvaluatorStream(args.locale, parser, schemas, args.tokenized, args.debug, args.output_errors, args.complexity_metric))
+            .pipe(new CollectSentenceStatistics({ maxComplexity: args.max_complexity, splitByDevice: args.split_by_device}));
 
         const result = await output.read();
 
