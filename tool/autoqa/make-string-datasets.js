@@ -148,10 +148,17 @@ class ParamDatasetGenerator {
         }
     }
 
-    run(data) {
-        for (let type in data) {
-            for (let objId in data[type])
-                this._processObject(data[type][objId], data[type][objId]['@type']);
+    run(data, fn) {
+        if (Array.isArray(data)) {
+            // normalized data format for dialogues
+            for (let d of data)
+                this._processObject(d, fn.slice(`${this._className}:`.length));
+        } else {
+            // normalized data format for one-shot QA
+            for (let type in data) {
+                for (let objId in data[type])
+                    this._processObject(data[type][objId], data[type][objId]['@type']);
+            }
         }
     }
 
@@ -271,7 +278,7 @@ module.exports = {
         });
         parser.add_argument('--data', {
             required: true,
-            help: 'Path to JSON file with normalized WebQA data.'
+            help: 'Path to JSON file with normalized AutoQA data, or to the database map TSV file.'
         });
         parser.add_argument('--max-value-length', {
             required: false,
@@ -299,8 +306,17 @@ module.exports = {
             args.max_value_length, args.class_name, args.dataset);
         await generator.init(args.thingpedia);
 
-        const data = JSON.parse(await util.promisify(fs.readFile)(args.data, { encoding: 'utf8' }));
-        generator.run(data);
+        if (args.data.endsWith('database-map.tsv')) {
+            const lines = await util.promisify(fs.readFile)(args.data, { encoding: 'utf8' });
+            for (let line of lines.trim().split('\n')) {
+                const [fn, path] = line.split('\t');
+                const data = JSON.parse(await util.promisify(fs.readFile)(path, { encoding: 'utf8' }));
+                generator.run(data, fn);
+            }
+        } else {
+            const data = JSON.parse(await util.promisify(fs.readFile)(args.data, { encoding: 'utf8' }));
+            generator.run(data);
+        }
 
         await generator.output(args.output_dir, args.manifest, args.append_manifest);
     }

@@ -126,8 +126,11 @@ class SchemaProcessor {
             for (let property of properties) {
                 const type = await this._getType(domain, property);
                 const annotations = {
-                    nl: { canonical: await this._getCanonical(property, type) }
+                    nl: { canonical: await this._getCanonical(property, type) },
+                    impl: {}
                 };
+                if (type.isString || type.isEntity )
+                    annotations.impl['string_values'] = new Ast.Value.String(`org.wikdiata:${domain}_${property}`);
                 args.push(new Ast.ArgumentDef(null, Ast.ArgDirection.OUT, property, type, annotations));
             }
             const qualifiers = { is_list: true, is_monitorable: false };
