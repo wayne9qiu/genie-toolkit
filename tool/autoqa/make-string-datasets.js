@@ -103,9 +103,13 @@ class ParamDatasetGenerator {
         for (let base of typemeta.extends)
             this._processObject(value, base, visitedTypes);
 
-        // if this entity has a name, add it to the string file
+        // if this entity has a name, add it to the string file (one-shot QA format)
         if (type !== 'Thing' && type !== 'Intangible' && value.name)
             this._getStringFile(type, true).push({ name: value.name, value: value['@id'] });
+
+        // if this entity has id and its value contains display, add it to the string file (dialogue format)
+        if (value.id && value.id.display && value.id.display !== value.id.value)
+            this._getStringFile(type, true).push({ name: value.id.display, value: value.id.value });
 
         for (let field in typemeta.fields) {
             const expectedType = typemeta.fields[field];
@@ -137,6 +141,9 @@ class ParamDatasetGenerator {
                 assert(typeof value === 'string');
                 this._addString(path.join('_'), value);
             }
+
+            if (!expectedType.type.startsWith('tt:') && value.display && value.display !== value.value)
+                this._getStringFile(expectedType.type, true).push({ name: value.display, value: value.value });
         } else {
             // compound type
 
