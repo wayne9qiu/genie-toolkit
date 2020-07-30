@@ -27,7 +27,7 @@ const Type = ThingTalk.Type;
 
 const StreamUtils = require('../../../lib/utils/stream-utils');
 const { clean } = require('../../../lib/utils/misc-utils');
-const { cleanEnumValue, snakecase } = require('../lib/utils');
+const { cleanEnumValue, snakecase, titleCase, DEFAULT_ENTITIES } = require('../lib/utils');
 const genBaseCanonical = require('../lib/base-canonical-generator');
 const {
     getPropertyList,
@@ -44,11 +44,13 @@ const {
 } = require('./manual-annotations');
 
 class SchemaProcessor {
-    constructor(domains, propertiesByDomain, requiredPropertiesByDomain, output) {
+    constructor(domains, propertiesByDomain, requiredPropertiesByDomain, output, outputEntities) {
         this._domains = domains;
         this._propertiesByDomain = propertiesByDomain;
         this._requiredPropertiesByDomain = requiredPropertiesByDomain;
         this._output = output;
+        this._outputEntities = outputEntities;
+        this._entities = DEFAULT_ENTITIES.slice();
     }
 
     async _getType(domain, property) {
@@ -110,11 +112,15 @@ class SchemaProcessor {
 
     }
 
-    async _getCanonical(property, type) {
-        const label = await getPropertyLabel(property);
+    async _getCanonical(label, type) {
         const canonical = {};
         genBaseCanonical(canonical, label, type);
         return canonical;
+    }
+
+    _addEntity(type, name, has_ner_support) {
+        if (!this._entities.some((entity) => entity.type === type))
+            this._entities.push({ type, name, is_well_known: false, has_ner_support});
     }
 
     async run() {
@@ -133,14 +139,18 @@ class SchemaProcessor {
                     nl: { canonical: { base: ['name'], passive_verb: ['named', 'called'] } }
                 })
             ];
+            this._addEntity(`org.wikidata:${snakecase(domainLabel)}`, titleCase(domainLabel), true);
             for (let property of properties) {
                 const type = await this._getType(domain, property);
+                const label = await getPropertyLabel(property);
                 const annotations = {
-                    nl: { canonical: await this._getCanonical(property, type) },
+                    nl: { canonical: await this._getCanonical(label, type) },
                     impl: {}
                 };
                 if (type.isString)
                     annotations.impl['string_values'] = new Ast.Value.String(`org.wikidata:${domainLabel}_${property}`);
+                if (type.isEntity && type.type.startsWith('org.wikidata:'))
+                    this._addEntity(type.type, titleCase(label), true);
                 args.push(new Ast.ArgumentDef(null, Ast.ArgDirection.OUT, property, type, annotations));
             }
             const qualifiers = { is_list: true, is_monitorable: false };
@@ -156,8 +166,6 @@ class SchemaProcessor {
 
             queries[domainLabel] = new Ast.FunctionDef(
                 null, 'query', null, domainLabel, null, qualifiers, args, annotations);
-
-
         }
 
         const imports = [
@@ -176,7 +184,12 @@ class SchemaProcessor {
             });
 
         this._output.end(classdef.prettyprint());
+        this._outputEntities.end(JSON.stringify({
+            result: 'ok',
+            data: this._entities
+        }, undefined, 2));
         await StreamUtils.waitFinish(this._output);
+        await StreamUtils.waitFinish(this._outputEntities);
     }
 }
 
@@ -188,6 +201,10 @@ module.exports = {
             description: "Generate schema.tt given a list of domains. "
         });
         parser.add_argument('-o', '--output', {
+            required: true,
+            type: fs.createWriteStream
+        });
+        parser.addArgument('--entities', {
             required: true,
             type: fs.createWriteStream
         });
@@ -244,7 +261,7 @@ module.exports = {
             for (let domain of domains)
                 propertiesByDomain[domain] = await getPropertyList(domain);
         }
-        const schemaProcessor = new SchemaProcessor(domains, propertiesByDomain, requiredPropertiesByDomain, args.output);
+        const schemaProcessor = new SchemaProcessor(domains, propertiesByDomain, requiredPropertiesByDomain, args.output, args.entities);
         schemaProcessor.run();
     }
 };
