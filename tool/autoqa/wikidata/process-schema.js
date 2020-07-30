@@ -82,6 +82,17 @@ class SchemaProcessor {
         if (range)
             return Type.Number;
 
+        /**  FIXME: create better heuristic to determine if something is plural.
+            Most properties are actually Array(Type.String) so that may be a
+            better default.
+        */
+        const stringTypes = ['native language', 'medical condition', 'subreddit'];
+        if (label.startsWith('place of') || label.startsWith('manner of')
+            || label.startsWith('cause of') || stringTypes.includes(label)) {
+          return Type.String;
+        }
+
+
         const types = await getValueTypeConstraint(property);
         // FIXME: choose based on examples in domain when multiple types available
         if (types.length > 0) {
@@ -93,10 +104,13 @@ class SchemaProcessor {
             if (types.some((type) => type.label === 'geographical object' || type.label === 'geographical location'))
                 return Type.Location;
 
-            return Type.Entity(`org.wikidata:${snakecase(types[0].label)}`);
+            // image type: P18, signature type: P109
+            if (types.some((type) => type.label === 'image' || type.label === 'signature'))
+                return Type.Entity(`tt:picture`);
         }
 
-        return Type.String;
+        // majority or arrays of string so this may be better default.
+        return Type.Array(Type.String);
 
     }
 
