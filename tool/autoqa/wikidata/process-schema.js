@@ -140,7 +140,7 @@ class SchemaProcessor {
                     impl: {}
                 };
                 if (type.isString)
-                    annotations.impl['string_values'] = new Ast.Value.String(`org.wikdiata:${domain}_${property}`);
+                    annotations.impl['string_values'] = new Ast.Value.String(`org.wikidata:${domainLabel}_${property}`);
                 args.push(new Ast.ArgumentDef(null, Ast.ArgDirection.OUT, property, type, annotations));
             }
             const qualifiers = { is_list: true, is_monitorable: false };
@@ -154,8 +154,8 @@ class SchemaProcessor {
                 );
             }
 
-            queries[domain] = new Ast.FunctionDef(
-                null, 'query', null, domain, null, qualifiers, args, annotations);
+            queries[domainLabel] = new Ast.FunctionDef(
+                null, 'query', null, domainLabel, null, qualifiers, args, annotations);
 
 
         }
