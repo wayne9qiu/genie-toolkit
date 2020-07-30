@@ -88,10 +88,10 @@ class SchemaProcessor {
         */
         const stringTypes = ['native language', 'medical condition', 'subreddit'];
         if (label.startsWith('place of') || label.startsWith('manner of')
-            || label.startsWith('cause of') || stringTypes.includes(label)) {
-          return Type.String;
-        }
-
+            || label.startsWith('cause of') || stringTypes.includes(label))
+            return Type.String;
+        else if (label === 'image' || label === 'signature')
+            return Type.Entity(`tt:picture`);
 
         const types = await getValueTypeConstraint(property);
         // FIXME: choose based on examples in domain when multiple types available
@@ -103,10 +103,6 @@ class SchemaProcessor {
             // location type: Q618123: geographic object, Q2221906: geographic location
             if (types.some((type) => type.label === 'geographical object' || type.label === 'geographical location'))
                 return Type.Location;
-
-            // image type: P18, signature type: P109
-            if (types.some((type) => type.label === 'image' || type.label === 'signature'))
-                return Type.Entity(`tt:picture`);
         }
 
         // majority or arrays of string so this may be better default.
@@ -143,7 +139,7 @@ class SchemaProcessor {
                     nl: { canonical: await this._getCanonical(property, type) },
                     impl: {}
                 };
-                if (type.isString || type.isEntity )
+                if (type.isString)
                     annotations.impl['string_values'] = new Ast.Value.String(`org.wikdiata:${domain}_${property}`);
                 args.push(new Ast.ArgumentDef(null, Ast.ArgDirection.OUT, property, type, annotations));
             }

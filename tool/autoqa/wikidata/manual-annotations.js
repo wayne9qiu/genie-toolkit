@@ -28,6 +28,7 @@ const PROPERTY_TYPE_OVERRIDE = {
     'P1449': Array(Type.String),
     'P166': Array(Type.Entity('org.wikidata:award')),
     'P106': Array(Type.Entity('org.wikidata:profession')),
+    'P26': Type.Entity('org.wikidata:human'), // spouse does not have "value type constraint" property
     'P21': Type.Enum(['female', 'male'])
 };
 
