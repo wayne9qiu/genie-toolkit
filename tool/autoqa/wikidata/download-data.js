@@ -12,6 +12,7 @@
 
 const assert = require('assert');
 const fs = require('fs');
+const path = require('path');
 const util = require('util');
 const ThingTalk = require('thingtalk');
 const csvstringify = require('csv-stringify');
@@ -160,24 +161,17 @@ class Downloader {
         for (let fn in this.meta) {
             this.databases[fn] = [];
             let items;
-            if (fs.existsSync(`./wikidata_result_${fn}.json`)) {
-                const input = util.promisify(fs.readFile);
-                items = JSON.parse(await input(`./wikidata_result_${fn}.json`));
-            } else {
-                const triples = [];
-                for (let arg of this.meta[fn].required_fields)
-                    triples.push(`wdt:${arg} ?${arg}`);
-                const query = `
-                    SELECT DISTINCT ?value 
-                    WHERE {
-                      ?value wdt:P31 wd:${this.meta[fn].subject}; ${triples.join('; ')} .
-                    }
-                    LIMIT ${this._options.target_size}
-                `;
-                items = await wikidataQuery(query);
-                const output = util.promisify(fs.writeFile);
-                await output(`./wikidata_result_${fn}.json`, JSON.stringify(items, null, 2));
-            }
+            const triples = [];
+            for (let arg of this.meta[fn].required_fields)
+                triples.push(`wdt:${arg} ?${arg}`);
+            const query = `
+                SELECT DISTINCT ?value 
+                WHERE {
+                  ?value wdt:P31 wd:${this.meta[fn].subject}; ${triples.join('; ')} .
+                }
+                LIMIT ${this._options.target_size}
+            `;
+            items = await wikidataQuery(query);
             for (let item of items)
                 await this._downloadOne(fn, item);
         }
@@ -190,8 +184,8 @@ module.exports = {
             addHelp: true,
             description: "Download sample data from wikidata."
         });
-        parser.addArgument('--output', {
-            type: fs.createWriteStream,
+        parser.addArgument('--output-dir', {
+            required: true,
             help: 'Path to the database map.'
         });
         parser.addArgument('--thingpedia', {
@@ -211,14 +205,14 @@ module.exports = {
         await downloader.download();
 
         const output = csvstringify({ header: false, delimiter: '\t' });
-        output.pipe(args.output);
+        output.pipe(fs.createWriteStream(path.resolve(args.output_dir, 'database-map.tsv')));
         for (let fn in downloader.database_map)
             output.write(downloader.database_map[fn]);
         output.end();
         await StreamUtils.waitFinish(output);
 
         for (let fn in downloader.databases) {
-            const output = fs.createWriteStream(`${downloader.database_map[fn][1]}`);
+            const output = fs.createWriteStream(path.resolve(args.output_dir, `${downloader.database_map[fn][1]}`));
             output.end(JSON.stringify(downloader.databases[fn], undefined, 2));
             await StreamUtils.waitFinish(output);
         }
