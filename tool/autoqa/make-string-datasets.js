@@ -314,10 +314,12 @@ module.exports = {
         await generator.init(args.thingpedia);
 
         if (args.data.endsWith('database-map.tsv')) {
+            const dir = path.dirname(args.data);
             const lines = await util.promisify(fs.readFile)(args.data, { encoding: 'utf8' });
             for (let line of lines.trim().split('\n')) {
-                const [fn, path] = line.split('\t');
-                const data = JSON.parse(await util.promisify(fs.readFile)(path, { encoding: 'utf8' }));
+                const [fn, dbPath] = line.split('\t');
+                const resolvedPath = path.resolve(dir, dbPath);
+                const data = JSON.parse(await util.promisify(fs.readFile)(resolvedPath, { encoding: 'utf8' }));
                 generator.run(data, fn);
             }
         } else {
