@@ -86,6 +86,12 @@ module.exports = {
             help: "URL of the server to evaluate. Use a file:// URL pointing to a model directory to evaluate using a local instance of genienlp",
             defaultValue: 'http://127.0.0.1:8400',
         });
+        parser.addArgument('--split', {
+            required: false,
+            defaultValue: 'valid',
+            help: "Dataset split used for evaluation",
+            choices: ['valid', 'test'],
+        });
         parser.addArgument('--tokenized', {
             required: false,
             action: 'storeTrue',
@@ -168,7 +174,7 @@ module.exports = {
     async execute(args) {
         const tpClient = new Tp.FileClient(args);
         const schemas = new ThingTalk.SchemaRetriever(tpClient, null, true);
-        const parser = ParserClient.get(args.url, args.locale);
+        const parser = ParserClient.get(args.url, args.locale, args.split);
         await parser.start();
 
         const output = readAllLines(args.input_file)
